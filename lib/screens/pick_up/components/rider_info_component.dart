@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_ui_taksi/widget/app_button_icon.dart';
-import 'package:flutter_ui_taksi/widget/app_svg_icon.dart';
 import 'package:flutter_ui_taksi/widget/widget.dart';
 
 import '../../../config/pallete.dart';
 
 class RiderInfoComponent extends StatelessWidget {
+  final Function()? onTrackTrip;
+
   const RiderInfoComponent({
     super.key,
+    this.onTrackTrip,
   });
 
   @override
@@ -118,6 +119,11 @@ class RiderInfoComponent extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
+          AppButton(
+            text: 'TRACK TRIP',
+            color: Pallete.color5,
+            onTap: onTrackTrip,
+          ),
           const AppButton(
             text: 'CANCEL RIDE',
             color: Pallete.color5,

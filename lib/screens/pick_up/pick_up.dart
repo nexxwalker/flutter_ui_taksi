@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_ui_taksi/config/pallete.dart';
+import 'package:flutter_ui_taksi/config/routes.dart';
 import 'package:flutter_ui_taksi/utils/currency.dart';
 import '../../widget/widget.dart';
 import 'components/map_component.dart';
@@ -31,37 +32,37 @@ class _PickUpPageState extends State<PickUpPage> {
       {
         'id': 1,
         'name': 'Home',
-        'address': 'Jl Mahakam Gg 2 Abadi',
+        'address': 'Kenyatta Avenue, Nyeri',
         'icon': 'home',
-        'position': {'lat': -3.015727, 'lng': 114.394987}
+        'position': {'lat': -0.4197, 'lng': 36.9476}
       },
       {
         'id': 2,
         'name': 'Work',
-        'address': 'Rumah Sakit Soemarno Sosroatmodjo Kapuas',
+        'address': 'Nyeri County Referral Hospital',
         'icon': 'work',
-        'position': {'lat': -3.009352, 'lng': 114.389101}
+        'position': {'lat': -0.4225, 'lng': 36.9556}
       },
       {
         'id': 3,
         'name': 'Fav 1',
-        'address': 'KP3',
+        'address': 'Gakere Road, Nyeri',
         'icon': 'kid_star',
-        'position': {'lat': -3.024200, 'lng': 114.390096}
+        'position': {'lat': -0.4148, 'lng': 36.9432}
       },
       {
         'id': 4,
         'name': 'Fav 2',
-        'address': 'Taman Daun',
+        'address': 'Chaka Road, Nyeri',
         'icon': 'kid_star',
-        'position': {'lat': -3.013431, 'lng': 114.378510}
+        'position': {'lat': -0.4243, 'lng': 36.9398}
       },
       {
         'id': 5,
         'name': 'Fav 3',
-        'address': 'Stadion Kapuas',
+        'address': 'The Outspan Hotel',
         'icon': 'kid_star',
-        'position': {'lat': -3.0081135, 'lng': 114.3880165}
+        'position': {'lat': -0.4274, 'lng': 36.9487}
       },
     ];
 
@@ -71,15 +72,15 @@ class _PickUpPageState extends State<PickUpPage> {
         'image': 'assets/car-white.png',
         'classes': 'Economy',
         'description': 'Fast and pocket friendly!',
-        'price': 85000.0,
-        'discount': 11.765
+        'price': 400.0,
+        'discount': 12.5
       },
       {
         'id': 2,
         'image': 'assets/car-black.png',
         'classes': 'Bussiness',
         'description': 'Higher class higher rate!',
-        'price': 150000.0,
+        'price': 750.0,
         'discount': 0.0
       },
       {
@@ -87,15 +88,15 @@ class _PickUpPageState extends State<PickUpPage> {
         'image': 'assets/car-white.png',
         'classes': 'Economy',
         'description': 'Fast and pocket friendly!',
-        'price': 85000.0,
-        'discount': 11.765
+        'price': 400.0,
+        'discount': 12.5
       },
       {
         'id': 4,
         'image': 'assets/car-black.png',
         'classes': 'Bussiness',
         'description': 'Higher class higher rate!',
-        'price': 150000.0,
+        'price': 750.0,
         'discount': 0.0
       },
     ];
@@ -244,7 +245,7 @@ class _PickUpPageState extends State<PickUpPage> {
                                           Text(destinateAddress),
                                         ],
                                       ),
-                                      Text(formatToIRR(priceSelected)),
+                                      Text(formatToKES(priceSelected)),
                                     ],
                                   ),
                                 ],
@@ -288,7 +289,19 @@ class _PickUpPageState extends State<PickUpPage> {
                                         });
                                       },
                                     )
-                                  : const RiderInfoComponent(),
+                                  : RiderInfoComponent(
+                                      onTrackTrip: () {
+                                        Navigator.pushNamed(
+                                          context,
+                                          Routes.tripProgress,
+                                          arguments: {
+                                            'pickup': myAddress,
+                                            'destination': destinateAddress,
+                                            'fare': priceSelected,
+                                          },
+                                        );
+                                      },
+                                    ),
                         ),
                       ),
                     ),

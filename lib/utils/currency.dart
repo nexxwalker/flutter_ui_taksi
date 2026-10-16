@@ -1,25 +1,12 @@
-String formatToIRR(double amount,
-    {String symbol = 'IRR', int decimalDigits = 0}) {
-  // Pisahkan bagian desimal jika diperlukan
-  String formattedAmount = amount.toStringAsFixed(decimalDigits);
+/// Formats an amount as Kenyan Shillings, e.g. 2450 -> "2,450 KES".
+String formatToKES(double amount, {String symbol = 'KES'}) {
+  // Bulatkan ke shilling terdekat (KES tidak memakai desimal).
+  final String formattedAmount = amount.toStringAsFixed(0).replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (Match match) => '${match.group(1)},',
+      );
 
-  // Format angka dengan tanda ribuan
-  List<String> parts = formattedAmount.split('.');
-  String integerPart = parts[0];
-  String fractionalPart = parts.length > 1 ? parts[1] : '';
-
-  // Tambahkan tanda titik pada angka ribuan
-  String result = integerPart.replaceAllMapped(
-    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-    (Match match) => '${match.group(1)}.',
-  );
-
-  // Gabungkan desimal jika ada
-  if (fractionalPart.isNotEmpty) {
-    result = '$result,$fractionalPart';
-  }
-
-  return '$result $symbol';
+  return '$formattedAmount $symbol';
 }
 
 double calculateDiscountedPrice({

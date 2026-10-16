@@ -29,6 +29,10 @@ The application features:
 - **Google Maps Integration**: Interactive maps for selecting pick-up.
 - **Responsive Design**: Supports various screen sizes with responsive UI elements.
 - **Seamless Navigation**: Implements navigation using Flutter Navigator for a smooth user flow.
+- **Three Roles In One App**: Switch between Client, Driver and Admin from the role hub (tap the person icon on the home screen).
+- **Client**: Book rides, follow trip progress, rate your driver and review upcoming and past rides.
+- **Driver**: Go online or offline, accept or decline ride requests, review trips and track weekly earnings.
+- **Admin**: Monitor live ride activity, approve or suspend drivers and review fleet revenue.
 - **Reusable Components**: Modular components for easier development and maintenance.
 
 ## 🛠️ Technologies

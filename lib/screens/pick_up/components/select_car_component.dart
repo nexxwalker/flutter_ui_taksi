@@ -150,7 +150,7 @@ class _SelectCarComponentState extends State<SelectCarComponent> {
               ),
               const SizedBox(height: 4),
               Text(
-                discount != 0 ? formatToIRR(price) : '',
+                discount != 0 ? formatToKES(price) : '',
                 style: Theme.of(context)
                     .textTheme
                     .labelMedium!
@@ -159,9 +159,9 @@ class _SelectCarComponentState extends State<SelectCarComponent> {
               const SizedBox(height: 4),
               Text(
                 discount != 0
-                    ? formatToIRR(calculateDiscountedPrice(
+                    ? formatToKES(calculateDiscountedPrice(
                         originalPrice: price, discountPercentage: discount))
-                    : formatToIRR(price),
+                    : formatToKES(price),
               ),
             ],
           ),

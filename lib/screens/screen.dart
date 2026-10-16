@@ -1,2 +1,10 @@
 export 'home.dart';
 export 'pick_up/pick_up.dart';
+export 'roles/roles.dart';
+export 'client/activity/activity.dart';
+export 'client/trip/trip_progress.dart';
+export 'driver/driver_home.dart';
+export 'admin/admin_dashboard.dart';
+export 'groceries/groceries.dart';
+export 'delivery/delivery.dart';
+export 'food/food.dart';

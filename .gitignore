@@ -41,3 +41,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Wrangler / Workers runtime & cache (do not commit build intermediates or state)
+api/.wrangler/
+api/wrangler-dev.log
+
+# Local preview/runtime state
+.freebuff/preview.pid
+.freebuff/preview-*.log
+.freebuff/preview-*.log.err
+
+# Dependencies installed locally
+node_modules/

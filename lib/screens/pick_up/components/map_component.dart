@@ -25,7 +25,7 @@ class MapComponent extends StatefulWidget {
 
 class _MapComponentState extends State<MapComponent> {
   late GoogleMapController mapController;
-  final LatLng _initialMarkerPosition = const LatLng(-3.009420, 114.388659);
+  final LatLng _initialMarkerPosition = const LatLng(-0.4197, 36.9476); // Nyeri town centre
 
   Set<Marker> _markers = {};
   String? _mapStyle;
@@ -175,7 +175,7 @@ class _MapComponentState extends State<MapComponent> {
       80, // Ukuran ikon
     );
 
-    LatLng position = const LatLng(-2.999283, 114.388786);
+    LatLng position = const LatLng(-0.4102, 36.9554); // Driver approaching from Nairobi Road
 
     setState(() {
       _markers.add(
