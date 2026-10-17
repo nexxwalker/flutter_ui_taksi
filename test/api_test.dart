@@ -1,13 +1,27 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
+
 import 'package:http/http.dart' as http;
 import 'package:flutter_test/flutter_test.dart';
 
-const baseUrl = 'http://127.0.0.1:8788';
+const defaultBaseUrl = 'http://127.0.0.1:8788';
 
+/// These tests drive the real Worker in `api/` over HTTP, so they only run when
+/// a backend is reachable. Start it with `npx wrangler dev --port 8788` from
+/// `api/` and export `API_BASE_URL`; CI does both automatically.
 void main() {
+  final baseUrl = Platform.environment['API_BASE_URL'] ?? defaultBaseUrl;
+  final skipReason = Platform.environment['API_BASE_URL'] == null
+      ? 'Start the API (cd api && npx wrangler dev --port 8788) and set API_BASE_URL to run the integration tests'
+      : null;
+
+  void apiTest(String description, Future<void> Function() body) {
+    test(description, body, skip: skipReason);
+  }
+
   http.Client client = http.Client();
 
-  Map<String, dynamic> _decodeGet(String body) {
+  Map<String, dynamic> decodeGet(String body) {
     if (body.isEmpty) return {};
     final decoded = jsonDecode(body);
     if (decoded is Map<String, dynamic>) return decoded;
@@ -18,7 +32,7 @@ void main() {
   Future<Map<String, dynamic>> get(String path) async {
     final res = await client.get(Uri.parse('$baseUrl$path'));
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      return _decodeGet(res.body);
+      return decodeGet(res.body);
     }
     throw Exception('GET $path failed: ${res.statusCode} ${res.body}');
   }
@@ -59,12 +73,12 @@ void main() {
     // fresh client per test for isolation where helpful
   });
 
-  test('health endpoint is reachable', () async {
+  apiTest('health endpoint is reachable', () async {
     final body = await get('/health');
     expect(body['ok'], isTrue);
   });
 
-  test('restaurants returns at least one restaurant in Nyeri', () async {
+  apiTest('restaurants returns at least one restaurant in Nyeri', () async {
     final restaurants = await get('/api/restaurants');
     final list = restaurants['results'] as List? ?? [];
     expect(list, isNotEmpty);
@@ -77,7 +91,7 @@ void main() {
     }
   });
 
-  test('menu returns items for a restaurant', () async {
+  apiTest('menu returns items for a restaurant', () async {
     final menu = await get('/api/menu?restaurant_id=1');
     final items = menu['results'] as List? ?? [];
     expect(items, isNotEmpty);
@@ -85,7 +99,7 @@ void main() {
     expect(prices, contains(450));
   });
 
-  test('create food order computes total with delivery fee', () async {
+  apiTest('create food order computes total with delivery fee', () async {
     final order = await post('/api/food/orders', {
       'restaurant_id': 1,
       'items': [
@@ -102,7 +116,7 @@ void main() {
     expect(order['restaurant_id'], equals(1));
   });
 
-  test('update food order status transitions', () async {
+  apiTest('update food order status transitions', () async {
     final order = await post('/api/food/orders', {
       'restaurant_id': 2,
       'items': [
@@ -117,7 +131,7 @@ void main() {
     expect(fetched['status'], equals('delivered'));
   });
 
-  test('create delivery records pickup, dropoff, receiver and parcel price', () async {
+  apiTest('create delivery records pickup, dropoff, receiver and parcel price', () async {
     final d = await post('/api/deliveries', {
       'pickup_address': 'Kenyatta Avenue, Nyeri',
       'dropoff_address': 'Nyeri County Referral Hospital',
@@ -138,7 +152,7 @@ void main() {
     expect(fetched['parcel_type'], equals('small_box'));
   });
 
-  test('update delivery status transitions', () async {
+  apiTest('update delivery status transitions', () async {
     final d = await post('/api/deliveries', {
       'pickup_address': 'Kimathi Street, Nyeri',
       'dropoff_address': 'Central Avenue, Nyeri',
@@ -153,7 +167,7 @@ void main() {
     expect(fetched['status'], equals('delivered'));
   });
 
-  test('list endpoints return created records', () async {
+  apiTest('list endpoints return created records', () async {
     final order = await post('/api/food/orders', {
       'restaurant_id': 3,
       'items': [
@@ -161,6 +175,8 @@ void main() {
       ],
       'pickup_address': 'Central Avenue, Nyeri',
     });
+    final createdOrder = await get('/api/food/orders/${order['id']}');
+    expect(createdOrder['restaurant_id'], equals(3));
     final deliveries = await get('/api/deliveries');
     final deliveryList = deliveries['results'] as List? ?? [];
     expect(deliveryList, isNotEmpty);

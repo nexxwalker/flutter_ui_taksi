@@ -152,8 +152,7 @@ class ApiStub {
   Map<String, dynamic> _findMenuItem(int id) {
     for (final list in _menu.values) {
       for (final item in list) {
-        final m = item as Map<String, dynamic>;
-        if (m['id'] == id) return m;
+        if (item['id'] == id) return item;
       }
     }
     throw StateError('no such menu item $id');
@@ -235,12 +234,6 @@ class _Client implements http.Client {
       ..body = body?.toString() ?? '';
     if (encoding != null) req.encoding = encoding;
     return _handler(req);
-  }
-
-  @override
-  Future<String> readString(Uri url, {Map<String, String>? headers}) async {
-    final res = await get(url, headers: headers);
-    return res.body;
   }
 
   @override

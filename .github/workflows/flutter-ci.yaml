@@ -39,5 +39,42 @@ jobs:
       - name: Run flutter analyze
         run: flutter analyze
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install API dependencies
+        run: npm ci
+
+      - name: Create local D1 schema
+        working-directory: api
+        run: npx wrangler d1 execute food-delivery-db --local --file schema.sql
+
+      - name: Start API worker
+        working-directory: api
+        run: |
+          npx wrangler dev --port 8788 --ip 127.0.0.1 > "$RUNNER_TEMP/api-dev.log" 2>&1 &
+
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8788/health > /dev/null; then
+              echo "API is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::API did not become healthy in 120s"
+          cat "$RUNNER_TEMP/api-dev.log"
+          exit 1
+
       - name: Run Flutter tests
+        env:
+          API_BASE_URL: http://127.0.0.1:8788
         run: flutter test
+
+      - name: Show API log on failure
+        if: failure()
+        run: cat "$RUNNER_TEMP/api-dev.log"

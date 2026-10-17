@@ -58,7 +58,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
         created = true;
         createdDelivery = d;
       });
-      _showSnack('A boda courier is on the way to ${pickupAddress} • ${formatToKES(d['parcel_price_kes'])} — delivery #${d['id']}');
+      _showSnack('A boda courier is on the way to $pickupAddress • ${formatToKES(d['parcel_price_kes'])} — delivery #${d['id']}');
     } catch (e) {
       if (!mounted) return;
       setState(() {

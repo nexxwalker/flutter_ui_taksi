@@ -109,10 +109,10 @@ class HomePage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Text(
                               'Peyman Hosseini',
                               style: TextStyle(fontSize: 14),

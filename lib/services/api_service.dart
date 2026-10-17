@@ -5,9 +5,8 @@ class ApiService {
   final String baseUrl;
   final http.Client client;
 
-  ApiService({String baseUrl = 'http://10.0.2.2:8788', http.Client? client})
-      : baseUrl = baseUrl,
-        client = client ?? http.Client();
+  ApiService({this.baseUrl = 'http://10.0.2.2:8788', http.Client? client})
+      : client = client ?? http.Client();
 
   /// Convenience for Flutter web local dev against the wrangler dev worker.
   static ApiService forWeb({String baseUrl = 'http://127.0.0.1:8788'}) {
