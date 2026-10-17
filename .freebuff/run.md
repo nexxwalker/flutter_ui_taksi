@@ -58,7 +58,18 @@ npx --yes http-server build/web -p 3000 -a 0.0.0.0 -c-1
   restart the server to pick up code changes.
 - Stop it by killing the listener pid on port 3000.
 
-Known runtime limitation in the browser: Google Maps tiles need a real Maps JS
-API key, so the map areas render without tiles; the rest of the UI (rides,
-roles, driver/admin screens, and the food/delivery/groceries flows wired
-through the API stub) works.
+## Maps
+
+Maps are rendered by `flutter_map` on OpenStreetMap raster tiles
+(`https://tile.openstreetmap.org/{z}/{x}/{y}.png`). No API key is involved, so
+the web bundle ships no credential: do not reintroduce a `maps.googleapis.com`
+script in `web/index.html` or a key placeholder in the Android manifest.
+
+- Tiles: OpenStreetMap, attribution shown on the map.
+- Routes: OSRM public server (`router.project-osrm.org`), key-free.
+- Pin reverse geocoding: Nominatim (best effort; falls back to "Nyeri, Kenya").
+
+Browsers need network access to `tile.openstreetmap.org`, `router.project-osrm.org`
+and `nominatim.openstreetmap.org` for tiles, routes and pin labels.
+`test/map_component_test.dart` renders the map with an in-memory tile provider,
+so widget tests need no network.

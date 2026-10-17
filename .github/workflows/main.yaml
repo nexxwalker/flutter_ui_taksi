@@ -32,11 +32,6 @@ jobs:
           flutter-version: '3.19.3'
           channel: 'stable'
 
-      - name: Inject API Key
-        run: |
-          sed -i '' 's/YOUR_MAPS_API_KEY/${{ secrets.MAPS_API_KEY }}/' android/app/src/main/AndroidManifest.xml
-          sed -i '' 's/YOUR_MAPS_API_KEY/${{ secrets.MAPS_API_KEY }}/' lib/services/google_map_service.dart
-
         #4 Install Dependencies
       - name: Install Dependencies
         run: flutter pub get

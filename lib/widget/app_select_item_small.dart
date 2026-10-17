@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ui_taksi/widget/app_svg_icon.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../config/pallete.dart';
 

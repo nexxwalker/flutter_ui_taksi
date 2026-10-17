@@ -38,8 +38,9 @@ dependencies:
   flutter_svg: ^2.0.10+1
   google_fonts: ^6.2.1
   http: ^1.2.2
-  google_maps_flutter: ^2.6.1
-  geocoding: ^3.0.0
+  # Key-free maps: OpenStreetMap raster tiles + OSRM routing (no API key to ship).
+  flutter_map: 6.1.0
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:
@@ -71,7 +72,6 @@ flutter:
   assets:
     - assets/
     - assets/icon/
-    - assets/map_style.json
     - assets/marker/
 
   # An image asset can refer to one or more resolution-specific "variants", see

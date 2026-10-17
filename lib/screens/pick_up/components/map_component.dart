@@ -1,20 +1,54 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_ui_taksi/config/pallete.dart';
-import 'package:flutter_ui_taksi/services/google_map_service.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_ui_taksi/services/geocoding_service.dart';
+import 'package:flutter_ui_taksi/services/routing_service.dart';
+import 'package:latlong2/latlong.dart';
 
-import '../../../utils/marker.dart';
+/// A single pin drawn on the map. Mutable so drags and the rider animation can
+/// move it in place.
+class _MapPin {
+  _MapPin({
+    required this.point,
+    required this.asset,
+    required this.size,
+    this.rotation = 0,
+    this.draggable = false,
+  });
 
+  LatLng point;
+  final String asset;
+  final double size;
+  double rotation;
+  bool draggable;
+}
+
+/// OpenStreetMap-backed map. Raster tiles come straight from
+/// `tile.openstreetmap.org`, which serves them without any API key, so the web
+/// bundle carries no credential that could be scraped from it.
 class MapComponent extends StatefulWidget {
   final Function(LatLng, String)? onDragMyPosition;
   final Function(LatLng, String)? onDragDestinatePosition;
-  const MapComponent(
-      {super.key, this.onDragMyPosition, this.onDragDestinatePosition});
 
-  // Menambahkan GlobalKey untuk mengakses state widget ini dari luar
+  /// Overridable so widget tests can render tiles without network access.
+  final TileProvider? tileProvider;
+
+  const MapComponent({
+    super.key,
+    this.onDragMyPosition,
+    this.onDragDestinatePosition,
+    this.tileProvider,
+  });
+
+  /// Required attribution for using OpenStreetMap tiles.
+  static const String attribution = '© OpenStreetMap contributors';
+
+  static const String tileUrlTemplate =
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+  // GlobalKey so the pick up screen can drive the map from outside.
   // ignore: library_private_types_in_public_api
   static final GlobalKey<_MapComponentState> mapComponentKey =
       GlobalKey<_MapComponentState>();
@@ -24,424 +58,313 @@ class MapComponent extends StatefulWidget {
 }
 
 class _MapComponentState extends State<MapComponent> {
-  late GoogleMapController mapController;
-  final LatLng _initialMarkerPosition = const LatLng(-0.4197, 36.9476); // Nyeri town centre
+  static const LatLng _initialMarkerPosition =
+      LatLng(-0.4197, 36.9476); // Nyeri town centre
+  static const LatLng _riderStart =
+      LatLng(-0.4102, 36.9554); // approaching from Nairobi Road
 
-  Set<Marker> _markers = {};
-  String? _mapStyle;
-  bool myLocationInit = false;
-  double iconSize = 70;
-  double _mapRotation = 0.0;
+  static const String _myLocationId = 'myLocationMarker';
+  static const String _destinationId = 'destinationMarker';
+  static const String _riderId = 'riderMarker';
 
-  // Tambahkan variabel polyline
-  Set<Polyline> _polylines = {};
-
-  Future<List<LatLng>> drawRoute(LatLng origin, LatLng destination) async {
-    final routeCoordinates = await getRoute(origin, destination);
-
-    setState(() {
-      _polylines.clear();
-
-      _polylines.add(
-        Polyline(
-          polylineId: const PolylineId('route'),
-          color: Pallete.color5, // Warna rute
-          width: 3, // Ketebalan garis
-          points: routeCoordinates, // Koordinat jalur
-        ),
-      );
-    });
-
-    // Pindahkan kamera agar mencakup jalur
-    // mapController.animateCamera(
-    //   CameraUpdate.newLatLngBounds(
-    //     LatLngBounds(
-    //       southwest: routeCoordinates.first,
-    //       northeast: routeCoordinates.last,
-    //     ),
-    //     50, // Padding
-    //   ),
-    // );
-    // ignore: empty_catches
-    return routeCoordinates;
-  }
-
-  void _updateMarkerRotation(double newRotation) {
-    setState(() {
-      _markers = _markers.map((marker) {
-        if (marker.markerId == const MarkerId('riderMarker')) {
-          // Sesuaikan rotasi marker
-          return marker.copyWith(rotationParam: 360 - newRotation + 130);
-        }
-        return marker;
-      }).toSet();
-    });
-  }
+  final MapController _mapController = MapController();
+  final Map<String, _MapPin> _pins = {};
+  List<LatLng> _route = const [];
+  bool _mapReady = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadMapStyle();
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
   }
 
-  void _onMapCreated(GoogleMapController controller) async {
-    mapController = controller;
-  }
-
-  Future<void> _loadMapStyle() async {
-    _mapStyle = await DefaultAssetBundle.of(context)
-        .loadString('assets/map_style.json');
-    setState(() {});
-  }
-
-  void addMarker({double iconSize = 100.0}) async {
-    final BitmapDescriptor customIcon = await getResizedIcon(
-      'assets/marker/marker-pin-white.png', // Path gambar ikon
-      iconSize, // Ukuran ikon
+  void _moveCamera(LatLng center, {double zoom = 15, double latOffset = 0}) {
+    if (!_mapReady) return;
+    _mapController.move(
+      LatLng(center.latitude + latOffset, center.longitude),
+      zoom,
     );
+  }
 
+  /// Puts the "my location" pin on the map at the town centre.
+  void addMarker() {
     setState(() {
-      myLocationInit = true;
-      _markers.add(
-        Marker(
-          anchor: const Offset(0.5, 0.5),
-          markerId: const MarkerId('myLocationMarker'),
-          position: _initialMarkerPosition,
-          icon: customIcon,
-        ),
+      _pins[_myLocationId] = _MapPin(
+        point: _initialMarkerPosition,
+        asset: 'assets/marker/marker-pin-white.png',
+        size: 70,
       );
     });
-
-    changeMarkerPosition(_initialMarkerPosition);
-
-    // Pindahkan kamera ke posisi baru
-    mapController.animateCamera(
-      CameraUpdate.newLatLngZoom(_initialMarkerPosition, 15.0),
-    );
+    _moveCamera(_initialMarkerPosition, latOffset: -0.0007);
   }
 
-  void addDraggableMarker() async {
-    final BitmapDescriptor customIcon = await getResizedIcon(
-      'assets/marker/marker-pin-orange.png', // Path gambar ikon
-      100, // Ukuran ikon
-    );
-
+  /// Puts a draggable destination pin on the map.
+  void addDraggableMarker() {
     setState(() {
-      _markers.add(
-        Marker(
-          markerId: const MarkerId('destinationMarker'),
-          position: _initialMarkerPosition,
-          anchor: const Offset(0.5, 0.5),
-
-          icon: customIcon,
-          draggable: true, // Aktifkan dragging
-          onDragEnd: (newPositions) {
-            setState(() {
-              // Update posisi marker tanpa menambah marker baru
-              _markers = _markers.map((marker) {
-                if (marker.markerId == const MarkerId('destinationMarker')) {
-                  // Update posisi marker yang digerakkan
-                  return marker.copyWith(positionParam: newPositions);
-                }
-                return marker;
-              }).toSet();
-            });
-
-            // Ambil informasi dari koordinat baru
-            placemarkFromCoordinates(
-                    newPositions.latitude, newPositions.longitude)
-                .then((placemarks) {
-              var output = 'No results found.';
-              if (placemarks.isNotEmpty) {
-                output = placemarks[0].street ?? 'Street not found';
-              }
-
-              if (widget.onDragDestinatePosition != null) {
-                widget.onDragDestinatePosition!(newPositions, output);
-              }
-            });
-          },
-        ),
+      _pins[_destinationId] = _MapPin(
+        point: _initialMarkerPosition,
+        asset: 'assets/marker/marker-pin-orange.png',
+        size: 100,
+        draggable: true,
       );
     });
-
-    // Pindahkan kamera ke posisi baru
-    _moveCameraWithOffset(_initialMarkerPosition, zoom: 15, offset: -0.007);
+    _moveCamera(_initialMarkerPosition, latOffset: -0.007);
   }
 
-  void addRiderMarker() async {
-    final BitmapDescriptor customIcon = await getResizedIcon(
-      'assets/marker/car-icon.png', // Path gambar ikon
-      80, // Ukuran ikon
-    );
-
-    LatLng position = const LatLng(-0.4102, 36.9554); // Driver approaching from Nairobi Road
-
+  /// Places the approaching rider and animates it to [myLocation] when known.
+  Future<void> addRiderMarker() async {
     setState(() {
-      _markers.add(
-        Marker(
-            markerId: const MarkerId('riderMarker'),
-            position: position,
-            icon: customIcon,
-            anchor: const Offset(0.5, 0.5),
-            rotation: 280),
+      _pins[_riderId] = _MapPin(
+        point: _riderStart,
+        asset: 'assets/marker/car-icon.png',
+        size: 80,
+        rotation: 280,
       );
     });
+    _moveCamera(_riderStart, latOffset: -0.007);
 
-    _moveCameraWithOffset(position, zoom: 15, offset: -0.007);
+    final LatLng? myLocation = _pins[_myLocationId]?.point;
+    if (myLocation == null) return;
 
-    if (myLocation != null) {
-      final route = await drawRoute(position, myLocation!);
-      moveMarkerAlongRoute(
-          route, const MarkerId('riderMarker')); // Gerakkan marker
+    try {
+      final route = await drawRoute(_riderStart, myLocation);
+      await moveMarkerAlongRoute(route, _riderId);
+    } catch (error) {
+      // The rider simply stays parked when routing is unavailable.
+      debugPrint('Rider route unavailable: $error');
     }
   }
 
-  Future<void> moveMarkerAlongRoute(
-      List<LatLng> route, MarkerId markerId) async {
-    const int duration = 120; // Durasi total animasi dalam detik (2 menit)
-    if (route.isEmpty || route.length < 2) return;
-
-    double totalDistance = 0.0;
-    for (int i = 0; i < route.length - 1; i++) {
-      totalDistance += _calculateDistance(route[i], route[i + 1]);
-    }
-
-    for (int i = 0; i < route.length - 1; i++) {
-      LatLng start = route[i];
-      LatLng end = route[i + 1];
-
-      double segmentDistance = _calculateDistance(start, end);
-      int segmentDuration =
-          ((segmentDistance / totalDistance) * duration * 1000).toInt();
-      final int steps = segmentDuration ~/ 16; // 16ms per frame (60 FPS)
-
-      // Hitung rotasi berdasarkan arah
-      double rotation = _calculateBearing(start, end);
-
-      for (int step = 0; step < steps; step++) {
-        final double t = step / steps;
-        final LatLng interpolatedPosition = LatLng(
-          start.latitude + (end.latitude - start.latitude) * t,
-          start.longitude + (end.longitude - start.longitude) * t,
-        );
-
-        // Update posisi marker dan polyline
-        setState(() {
-          _markers = _markers.map((marker) {
-            if (marker.markerId == markerId) {
-              return marker.copyWith(
-                positionParam: interpolatedPosition,
-                rotationParam: rotation,
-              );
-            }
-            return marker;
-          }).toSet();
-
-          // Perbarui polyline
-          _polylines = _polylines.map((polyline) {
-            if (polyline.polylineId.value == 'route') {
-              // Perbarui rute dengan sisa jalur
-              final remainingRoute = route.sublist(i);
-              return polyline.copyWith(pointsParam: remainingRoute);
-            }
-            return polyline;
-          }).toSet();
-        });
-
-        await Future.delayed(const Duration(milliseconds: 16));
-      }
-    }
-
-    // Pastikan marker berada di titik akhir
-    setState(() {
-      _markers = _markers.map((marker) {
-        if (marker.markerId == markerId) {
-          return marker.copyWith(
-            positionParam: route.last,
-            rotationParam:
-                _calculateBearing(route[route.length - 2], route.last),
-          );
-        }
-        return marker;
-      }).toSet();
-
-      // Hapus rute (opsional)
-      _polylines = _polylines.map((polyline) {
-        if (polyline.polylineId.value == 'route') {
-          return polyline.copyWith(pointsParam: []);
-        }
-        return polyline;
-      }).toSet();
-    });
-  }
-
-  double _calculateBearing(LatLng start, LatLng end) {
-    final double startLat = _degreesToRadians(start.latitude);
-    final double startLng = _degreesToRadians(start.longitude);
-    final double endLat = _degreesToRadians(end.latitude);
-    final double endLng = _degreesToRadians(end.longitude);
-
-    final double dLng = endLng - startLng;
-    final double y = sin(dLng) * cos(endLat);
-    final double x =
-        cos(startLat) * sin(endLat) - sin(startLat) * cos(endLat) * cos(dLng);
-    final double bearing = atan2(y, x);
-
-    return (_radiansToDegrees(bearing) + 360) % 360;
-  }
-
-  double _radiansToDegrees(double radians) {
-    return radians * 50 / pi;
-  }
-
-  double _calculateDistance(LatLng start, LatLng end) {
-    const double earthRadius = 6371; // Radius bumi dalam kilometer
-    final double dLat = _degreesToRadians(end.latitude - start.latitude);
-    final double dLng = _degreesToRadians(end.longitude - start.longitude);
-
-    final double a = (sin(dLat / 2) * sin(dLat / 2)) +
-        cos(_degreesToRadians(start.latitude)) *
-            cos(_degreesToRadians(end.latitude)) *
-            (sin(dLng / 2) * sin(dLng / 2));
-    final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-
-    return earthRadius * c;
-  }
-
-  double _degreesToRadians(double degrees) {
-    return degrees * pi / 50;
-  }
-
-  void changeMarkerPosition(LatLng newPosition) async {
-    if (!myLocationInit) {
+  /// Moves the "my location" pin, or adds it when it is not on the map yet.
+  void changeMarkerPosition(LatLng newPosition) {
+    final pin = _pins[_myLocationId];
+    if (pin == null) {
       addMarker();
       return;
     }
 
-    final BitmapDescriptor customIcon = await getResizedIcon(
-      'assets/marker/marker-pin-white.png', // Path gambar ikon
-      iconSize, // Ukuran ikon
-    );
-    setState(() {
-      // Buat marker baru dengan posisi yang diperbarui
-      final updatedMarker = Marker(
-        markerId: const MarkerId('myLocationMarker'),
-        position: newPosition,
-        anchor: const Offset(0.5, 0.5),
-        icon: customIcon, // Gunakan ikon yang sama
-        draggable: true, // Pastikan draggable tetap aktif jika dibutuhkan
-        onDragEnd: (newPositions) {
-          setState(() {
-            // Update posisi marker tanpa menambah marker baru
-            _markers = _markers.map((marker) {
-              if (marker.markerId == const MarkerId('myLocationMarker')) {
-                // Update posisi marker yang digerakkan
-                return marker.copyWith(positionParam: newPositions);
-              }
-              return marker;
-            }).toSet();
-          });
-
-          // Ambil informasi dari koordinat baru
-          placemarkFromCoordinates(
-                  newPositions.latitude, newPositions.longitude)
-              .then((placemarks) {
-            var output = 'No results found.';
-            if (placemarks.isNotEmpty) {
-              output = placemarks[0].street ?? 'Street not found';
-            }
-            if (widget.onDragMyPosition != null) {
-              widget.onDragMyPosition!(newPositions, output);
-            }
-          });
-        },
-      );
-
-      // Hapus marker lama dan tambahkan yang baru
-      _markers.removeWhere(
-          (marker) => marker.markerId == const MarkerId('myLocationMarker'));
-      _markers.add(updatedMarker);
-
-      // Pindahkan kamera ke posisi baru
-      _moveCameraWithOffset(newPosition);
-    });
+    setState(() => pin.point = newPosition);
+    _moveCamera(newPosition, latOffset: -0.0007);
   }
 
-  void _moveCameraWithOffset(LatLng newPosition,
-      {double zoom = 18, double offset = -0.0007}) {
-    // Hitung offset berdasarkan latitude
-    final LatLng adjustedPosition = LatLng(
-      newPosition.latitude + offset, // Tambahkan offset ke latitude
-      newPosition.longitude, // Longitude tetap
-    );
+  /// Freezes the dragged pin in place and draws the route once both pin types
+  /// are known.
+  void pinMarker(String markerId) {
+    final pin = _pins[markerId];
+    if (pin == null) return;
 
-    // Animasi kamera ke posisi yang disesuaikan
-    mapController.animateCamera(
-      CameraUpdate.newLatLngZoom(adjustedPosition, zoom),
-    );
-  }
+    setState(() => pin.draggable = false);
+    _moveCamera(pin.point, latOffset: -0.0007);
 
-  late final LatLng? myLocation;
-  late final LatLng? myDestination;
-
-  void pinMarker(String markerId) async {
-    final BitmapDescriptor customIcon = await getResizedIcon(
-      markerId == 'myLocationMarker'
-          ? 'assets/marker/marker-white.png'
-          : 'assets/marker/marker-orange.png', // Path gambar ikon
-      100, // Ukuran ikon
-    );
-
-    setState(() {
-      final position = _markers
-          .firstWhere(
-            (marker) => marker.markerId == MarkerId(markerId),
-          )
-          .position;
-      final updatedMarker = Marker(
-          markerId: MarkerId(markerId),
-          icon: customIcon,
-          draggable: false,
-          anchor: const Offset(0.5, 0.5),
-          position: position);
-
-      _markers.removeWhere((marker) => marker.markerId == MarkerId(markerId));
-      _markers.add(updatedMarker);
-
-      if (markerId == 'myLocationMarker') {
-        myLocation = position;
-      } else {
-        myDestination = position;
-      }
-
-      _moveCameraWithOffset(position);
-    });
-
-    if (myLocation != null && myDestination != null) {
-      drawRoute(myLocation!, myDestination!);
+    final LatLng? myLocation = _pins[_myLocationId]?.point;
+    final LatLng? destination = _pins[_destinationId]?.point;
+    if (myLocation != null && destination != null) {
+      drawRoute(myLocation, destination);
     }
+  }
+
+  Future<List<LatLng>> drawRoute(LatLng origin, LatLng destination) async {
+    final route = await getRoute(origin, destination);
+    if (!mounted) return route;
+
+    setState(() => _route = route);
+    return route;
+  }
+
+  void _dragPin(String markerId, Offset delta) {
+    final pin = _pins[markerId];
+    if (pin == null || !_mapReady) return;
+
+    final camera = _mapController.camera;
+    final screenPoint = camera.latLngToScreenPoint(pin.point);
+    final moved = camera.pointToLatLng(
+      screenPoint + Point<double>(delta.dx, delta.dy),
+    );
+
+    setState(() => pin.point = moved);
+  }
+
+  Future<void> _releasePin(String markerId) async {
+    final pin = _pins[markerId];
+    if (pin == null) return;
+
+    final label = await reverseGeocode(pin.point) ?? 'Nyeri, Kenya';
+    if (!mounted) return;
+
+    if (markerId == _myLocationId) {
+      widget.onDragMyPosition?.call(pin.point, label);
+    } else {
+      widget.onDragDestinatePosition?.call(pin.point, label);
+    }
+  }
+
+  /// Animates a pin along [route], keeping its heading in step with the road.
+  Future<void> moveMarkerAlongRoute(
+    List<LatLng> route,
+    String markerId, {
+    Duration duration = const Duration(seconds: 120),
+  }) async {
+    final pin = _pins[markerId];
+    if (pin == null || route.length < 2) return;
+
+    final legs = <_RouteLeg>[];
+    double totalDistance = 0;
+    for (var i = 0; i < route.length - 1; i++) {
+      final distance = _distanceKm(route[i], route[i + 1]);
+      totalDistance += distance;
+      legs.add(_RouteLeg(
+        start: route[i],
+        end: route[i + 1],
+        distance: distance,
+        bearing: _bearing(route[i], route[i + 1]),
+      ));
+    }
+    if (totalDistance == 0) return;
+
+    for (final leg in legs) {
+      final segment = duration.inMilliseconds * (leg.distance / totalDistance);
+      final steps = max(1, segment ~/ 16); // ~60 FPS
+
+      for (var step = 0; step < steps; step++) {
+        if (!mounted) return;
+        final t = step / steps;
+        setState(() {
+          pin.point = LatLng(
+            leg.start.latitude + (leg.end.latitude - leg.start.latitude) * t,
+            leg.start.longitude + (leg.end.longitude - leg.start.longitude) * t,
+          );
+          pin.rotation = leg.bearing;
+        });
+        await Future.delayed(const Duration(milliseconds: 16));
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      pin.point = route.last;
+      if (legs.isNotEmpty) pin.rotation = legs.last.bearing;
+    });
+  }
+
+  double _distanceKm(LatLng start, LatLng end) {
+    const double earthRadiusKm = 6371;
+    final dLat = _toRadians(end.latitude - start.latitude);
+    final dLng = _toRadians(end.longitude - start.longitude);
+    final a = pow(sin(dLat / 2), 2) +
+        cos(_toRadians(start.latitude)) *
+            cos(_toRadians(end.latitude)) *
+            pow(sin(dLng / 2), 2);
+    return earthRadiusKm * 2 * atan2(sqrt(a), sqrt(1 - a));
+  }
+
+  double _bearing(LatLng start, LatLng end) {
+    final startLat = _toRadians(start.latitude);
+    final endLat = _toRadians(end.latitude);
+    final dLng = _toRadians(end.longitude - start.longitude);
+    final y = sin(dLng) * cos(endLat);
+    final x = cos(startLat) * sin(endLat) -
+        sin(startLat) * cos(endLat) * cos(dLng);
+    return (_toDegrees(atan2(y, x)) + 360) % 360;
+  }
+
+  double _toRadians(double degrees) => degrees * pi / 180;
+
+  double _toDegrees(double radians) => radians * 180 / pi;
+
+  Marker _buildMarker(String markerId, _MapPin pin) {
+    final image = Image.asset(
+      pin.asset,
+      width: pin.size,
+      height: pin.size,
+      filterQuality: FilterQuality.high,
+    );
+    final icon = pin.rotation == 0
+        ? image
+        : Transform.rotate(angle: _toRadians(pin.rotation), child: image);
+
+    return Marker(
+      point: pin.point,
+      width: pin.size,
+      height: pin.size,
+      child: pin.draggable
+          ? GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanUpdate: (details) => _dragPin(markerId, details.delta),
+              onPanEnd: (_) => _releasePin(markerId),
+              child: icon,
+            )
+          : icon,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      child: GoogleMap(
-        onMapCreated: _onMapCreated,
-        initialCameraPosition: CameraPosition(
-          target: _initialMarkerPosition,
-          zoom: 15.0,
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: _initialMarkerPosition,
+        initialZoom: 15,
+        minZoom: 3,
+        maxZoom: 19,
+        backgroundColor: Pallete.black2,
+        // Rotation would rotate markers away from the pin anchor; disable it.
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
         ),
-        style: _mapStyle,
-        markers: _markers,
-        polylines: _polylines,
-        onCameraMove: (CameraPosition position) {
-          setState(() {
-            _mapRotation = position.bearing; // Simpan rotasi
-            _updateMarkerRotation(_mapRotation); // Perbarui marker
-          });
-        },
+        onMapReady: () => setState(() => _mapReady = true),
       ),
+      children: [
+        TileLayer(
+          urlTemplate: MapComponent.tileUrlTemplate,
+          userAgentPackageName: 'flutter_ui_taksi',
+          maxNativeZoom: 19,
+          tileProvider: widget.tileProvider,
+        ),
+        if (_route.isNotEmpty)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: _route,
+                color: Pallete.color5,
+                strokeWidth: 3,
+              ),
+            ],
+          ),
+        MarkerLayer(
+          markers: [
+            for (final entry in _pins.entries)
+              _buildMarker(entry.key, entry.value),
+          ],
+        ),
+        Align(
+          alignment: Alignment.bottomRight,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            color: Pallete.black2.withOpacity(0.7),
+            child: const Text(
+              MapComponent.attribution,
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+              style: TextStyle(fontSize: 10, color: Pallete.grey1),
+            ),
+          ),
+        ),
+      ],
     );
   }
+}
+
+class _RouteLeg {
+  _RouteLeg({
+    required this.start,
+    required this.end,
+    required this.distance,
+    required this.bearing,
+  });
+
+  final LatLng start;
+  final LatLng end;
+  final double distance;
+  final double bearing;
 }
