@@ -7,6 +7,8 @@ import 'package:flutter_ui_taksi/services/geocoding_service.dart';
 import 'package:flutter_ui_taksi/services/routing_service.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'pin_clustering.dart';
+
 /// A single pin drawn on the map. Mutable so drags and the rider animation can
 /// move it in place.
 class _MapPin {
@@ -35,11 +37,17 @@ class MapComponent extends StatefulWidget {
   /// Overridable so widget tests can render tiles without network access.
   final TileProvider? tileProvider;
 
+  /// Pins closer than this many screen pixels are drawn as one numbered badge.
+  final double clusterThreshold;
+
   const MapComponent({
     super.key,
     this.onDragMyPosition,
     this.onDragDestinatePosition,
     this.tileProvider,
+    // Below the ~35px gap the pickup and destination pins start with, so they
+    // stay grabbable at the default zoom and only merge when zoomed out.
+    this.clusterThreshold = 24,
   });
 
   /// Required attribution for using OpenStreetMap tiles.
@@ -67,10 +75,13 @@ class _MapComponentState extends State<MapComponent> {
   static const String _destinationId = 'destinationMarker';
   static const String _riderId = 'riderMarker';
 
+  static const Epsg3857 _crs = Epsg3857();
+
   final MapController _mapController = MapController();
   final Map<String, _MapPin> _pins = {};
   List<LatLng> _route = const [];
   bool _mapReady = false;
+  double _zoom = 15;
 
   @override
   void dispose() {
@@ -100,9 +111,17 @@ class _MapComponentState extends State<MapComponent> {
 
   /// Puts a draggable destination pin on the map.
   void addDraggableMarker() {
+    // Both pins default to the town centre. Nudge the destination so it is not
+    // hidden underneath the pickup pin and can be grabbed straight away.
+    var point = _initialMarkerPosition;
+    final LatLng? myLocation = _pins[_myLocationId]?.point;
+    if (myLocation != null && _distanceKm(myLocation, point) < 0.05) {
+      point = LatLng(point.latitude + 0.0014, point.longitude + 0.0007);
+    }
+
     setState(() {
       _pins[_destinationId] = _MapPin(
-        point: _initialMarkerPosition,
+        point: point,
         asset: 'assets/marker/marker-pin-orange.png',
         size: 100,
         draggable: true,
@@ -297,6 +316,88 @@ class _MapComponentState extends State<MapComponent> {
     );
   }
 
+  /// Bubble that stands in for [count] pins that would otherwise overlap.
+  Marker _buildClusterMarker(LatLng centre, int count) {
+    const double size = 46;
+    return Marker(
+      point: centre,
+      width: size,
+      height: size,
+      child: GestureDetector(
+        onTap: () => _zoomIntoCluster(centre),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Pallete.color5,
+            shape: BoxShape.circle,
+            border: Border.all(color: Pallete.black2, width: 2),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _zoomIntoCluster(LatLng centre) {
+    if (!_mapReady) return;
+    _mapController.move(centre, (_zoom + 2).clamp(3, 19));
+  }
+
+  /// Pins that may be clustered. The rider is excluded: it is the live vehicle
+  /// and moves on every animation frame.
+  Map<String, _MapPin> get _clusterablePins => {
+        for (final entry in _pins.entries)
+          if (entry.key != _riderId) entry.key: entry.value,
+      };
+
+  Offset _projectedPoint(LatLng point) {
+    final projected = _crs.latLngToPoint(point, _zoom);
+    return Offset(projected.x, projected.y);
+  }
+
+  LatLng _averagePoint(List<LatLng> points) {
+    var latitude = 0.0;
+    var longitude = 0.0;
+    for (final point in points) {
+      latitude += point.latitude;
+      longitude += point.longitude;
+    }
+    return LatLng(latitude / points.length, longitude / points.length);
+  }
+
+  /// Splits the pins into single markers and numbered cluster badges.
+  List<Marker> _buildMarkers() {
+    final clusterable = _clusterablePins;
+    final ids = clusterable.keys.toList();
+    final groups = clusterIndexes(
+      [for (final id in ids) _projectedPoint(clusterable[id]!.point)],
+      threshold: widget.clusterThreshold,
+    );
+
+    final markers = <Marker>[];
+    final clusteredIds = <String>{};
+
+    for (final group in groups) {
+      if (group.length < 2) continue;
+      final points = [for (final index in group) clusterable[ids[index]]!.point];
+      clusteredIds.addAll([for (final index in group) ids[index]]);
+      markers.add(_buildClusterMarker(_averagePoint(points), group.length));
+    }
+
+    for (final entry in _pins.entries) {
+      if (clusteredIds.contains(entry.key)) continue;
+      markers.add(_buildMarker(entry.key, entry.value));
+    }
+
+    return markers;
+  }
+
   @override
   Widget build(BuildContext context) {
     return FlutterMap(
@@ -311,6 +412,13 @@ class _MapComponentState extends State<MapComponent> {
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
         ),
+        // Clustering depends on zoom only: panning moves every pin equally.
+        onPositionChanged: (camera, hasGesture) {
+          final zoom = camera.zoom ?? _zoom;
+          if ((zoom - _zoom).abs() > 0.01) {
+            setState(() => _zoom = zoom);
+          }
+        },
         onMapReady: () => setState(() => _mapReady = true),
       ),
       children: [
@@ -330,12 +438,7 @@ class _MapComponentState extends State<MapComponent> {
               ),
             ],
           ),
-        MarkerLayer(
-          markers: [
-            for (final entry in _pins.entries)
-              _buildMarker(entry.key, entry.value),
-          ],
-        ),
+        MarkerLayer(markers: _buildMarkers()),
         Align(
           alignment: Alignment.bottomRight,
           child: Container(

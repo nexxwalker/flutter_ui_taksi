@@ -92,4 +92,47 @@ void main() {
       findsWidgets,
     );
   });
+
+  testWidgets('overlapping pins show one numbered badge that zooms apart',
+      (tester) async {
+    await tester.pumpWidget(
+      _wrap(MapComponent(
+        key: MapComponent.mapComponentKey,
+        tileProvider: _MemoryTileProvider(),
+        // The two pins start ~35px apart at zoom 15, so 40 clusters them and
+        // the zoom-on-tap takes them to ~140px, which unclusters them.
+        clusterThreshold: 40,
+      )),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    MapComponent.mapComponentKey.currentState!.addMarker();
+    MapComponent.mapComponentKey.currentState!.addDraggableMarker();
+    await tester.pump();
+
+    expect(find.text('2'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => _isAsset(widget, 'assets/marker/marker-pin-white.png'),
+      ),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('2'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => _isAsset(widget, 'assets/marker/marker-pin-white.png'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => _isAsset(widget, 'assets/marker/marker-pin-orange.png'),
+      ),
+      findsOneWidget,
+    );
+  });
 }
