@@ -39,6 +39,7 @@ dependencies:
   google_fonts: ^6.2.1
   http: ^1.2.2
   # Key-free maps: OpenStreetMap raster tiles + OSRM routing (no API key to ship).
+  # Pinned: flutter_map >=6.2 needs meta ^1.12, while Flutter 3.19 pins meta 1.11.
   flutter_map: 6.1.0
   latlong2: ^0.9.1
 
