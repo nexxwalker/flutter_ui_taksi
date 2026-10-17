@@ -23,6 +23,22 @@ flutter build web --base-href / --web-renderer canvaskit
 The preview serves the **prebuilt** `build/web` tree through a static HTTP
 server — it does not run `flutter run` / the Dart dev compiler.
 
+### Checks (same commands CI runs)
+
+```bash
+flutter analyze        # must report "No issues found!"
+flutter test           # widget tests only; API integration tests skip
+```
+
+`test/api_test.dart` drives the real Worker in `api/`, so it needs a backend:
+
+```bash
+npm ci
+(cd api && npx wrangler d1 execute food-delivery-db --local --file schema.sql)
+(cd api && npx wrangler dev --port 8788 --ip 127.0.0.1 &)   # wait for /health
+API_BASE_URL=http://127.0.0.1:8788 flutter test             # 16 tests, all green
+```
+
 ## 2. Run the server
 
 ```bash
