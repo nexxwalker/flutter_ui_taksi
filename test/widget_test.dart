@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flutter_ui_taksi/config/map_tiles.dart';
 import 'package:flutter_ui_taksi/config/pallete.dart';
 import 'package:flutter_ui_taksi/config/routes.dart';
 import 'package:flutter_ui_taksi/screens/screen.dart';
@@ -266,6 +267,11 @@ void main() {
     expect(find.text('PAY IN A BLINK!'), findsOneWidget);
     expect(find.text('Active services around you'), findsOneWidget);
     expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+    final homeTiles = tester.widget<ColorFiltered>(find.ancestor(
+      of: find.byType(TileLayer),
+      matching: find.byType(ColorFiltered),
+    ));
+    expect(homeTiles.colorFilter, MapTiles.darkFilter);
 
     // Groceries flow: pick items and place an order.
     await tester.tap(find.text('Need groceries?'));

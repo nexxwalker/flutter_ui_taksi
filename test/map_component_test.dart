@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_ui_taksi/config/map_tiles.dart';
 import 'package:flutter_ui_taksi/screens/pick_up/components/map_component.dart';
 
 /// 1x1 transparent PNG, so tiles resolve without touching the network.
@@ -38,7 +39,7 @@ bool _isAsset(Widget widget, String asset) =>
     (widget.image as AssetImage).assetName == asset;
 
 void main() {
-  testWidgets('map renders OpenStreetMap tiles with no API key',
+  testWidgets('map renders key-free OpenStreetMap tiles filtered dark',
       (tester) async {
     await tester.pumpWidget(
       _wrap(MapComponent(tileProvider: _MemoryTileProvider())),
@@ -50,6 +51,21 @@ void main() {
     expect(tileLayer.urlTemplate, contains('tile.openstreetmap.org'));
     expect(tileLayer.urlTemplate, isNot(contains('key')));
     expect(find.text(MapComponent.attribution), findsOneWidget);
+
+    // The tiles carry the dark filter; markers and the attribution sit outside
+    // it, so pins keep their real colours.
+    final filtered = tester.widget<ColorFiltered>(find.ancestor(
+      of: find.byType(TileLayer),
+      matching: find.byType(ColorFiltered),
+    ));
+    expect(filtered.colorFilter, MapTiles.darkFilter);
+    expect(
+      find.descendant(
+        of: find.byType(ColorFiltered),
+        matching: find.byType(MarkerLayer),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('pins added through the shared key are drawn on the map',

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_ui_taksi/config/map_tiles.dart';
 import 'package:flutter_ui_taksi/config/pallete.dart';
 import 'package:flutter_ui_taksi/services/geocoding_service.dart';
 import 'package:flutter_ui_taksi/services/routing_service.dart';
@@ -51,10 +52,9 @@ class MapComponent extends StatefulWidget {
   });
 
   /// Required attribution for using OpenStreetMap tiles.
-  static const String attribution = '© OpenStreetMap contributors';
+  static const String attribution = MapTiles.attribution;
 
-  static const String tileUrlTemplate =
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const String tileUrlTemplate = MapTiles.urlTemplate;
 
   // GlobalKey so the pick up screen can drive the map from outside.
   // ignore: library_private_types_in_public_api
@@ -422,12 +422,7 @@ class _MapComponentState extends State<MapComponent> {
         onMapReady: () => setState(() => _mapReady = true),
       ),
       children: [
-        TileLayer(
-          urlTemplate: MapComponent.tileUrlTemplate,
-          userAgentPackageName: 'flutter_ui_taksi',
-          maxNativeZoom: 19,
-          tileProvider: widget.tileProvider,
-        ),
+        MapTiles.darkLayer(tileProvider: widget.tileProvider),
         if (_route.isNotEmpty)
           PolylineLayer(
             polylines: [

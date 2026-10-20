@@ -2,9 +2,9 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_ui_taksi/config/map_tiles.dart';
 import 'package:flutter_ui_taksi/config/pallete.dart';
 import 'package:flutter_ui_taksi/config/routes.dart';
-import 'package:flutter_ui_taksi/screens/pick_up/components/map_component.dart';
 import 'package:flutter_ui_taksi/services/api_service.dart';
 import 'package:flutter_ui_taksi/utils/color.dart';
 import 'package:flutter_ui_taksi/utils/currency.dart';
@@ -293,12 +293,7 @@ class _MapSmallComponentState extends State<MapSmallComponent> {
           ),
         ),
         children: [
-          TileLayer(
-            urlTemplate: MapComponent.tileUrlTemplate,
-            userAgentPackageName: 'flutter_ui_taksi',
-            maxNativeZoom: 19,
-            tileProvider: widget.tileProvider,
-          ),
+          MapTiles.darkLayer(tileProvider: widget.tileProvider),
           CircleLayer(
             circles: [
               CircleMarker(
@@ -335,7 +330,7 @@ class _MapSmallComponentState extends State<MapSmallComponent> {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               color: Pallete.black2.withOpacity(0.7),
               child: const Text(
-                MapComponent.attribution,
+                MapTiles.attribution,
                 maxLines: 1,
                 overflow: TextOverflow.fade,
                 softWrap: false,

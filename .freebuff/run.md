@@ -64,11 +64,21 @@ Maps are rendered by `flutter_map` on OpenStreetMap raster tiles
 the web bundle ships no credential: do not reintroduce a `maps.googleapis.com`
 script in `web/index.html` or a key placeholder in the Android manifest.
 
-- Tiles: OpenStreetMap, attribution shown on the map.
+- Tiles: OpenStreetMap, attribution shown on the map, filtered into the app's
+  dark basemap by `MapTiles.darkLayer` (`lib/config/map_tiles.dart`). Both maps
+  use it, so the tile source and colour treatment only change in one place.
 - Routes: OSRM public server (`router.project-osrm.org`), key-free.
 - Pin reverse geocoding: Nominatim (best effort; falls back to "Nyeri, Kenya").
 
 Browsers need network access to `tile.openstreetmap.org`, `router.project-osrm.org`
 and `nominatim.openstreetmap.org` for tiles, routes and pin labels.
+
+OpenStreetMap blocks scripts that send a generic user agent (`Python-urllib`,
+empty UA, …) with a 403 "Access blocked" tile, so manual checks must identify
+themselves, e.g. `curl -A "flutter_ui_taksi/1.0 (dev check)"`. CARTO's dark
+basemap is not an alternative: its tiles now require an API key even though the
+endpoint may still answer without one.
+
 `test/map_component_test.dart` renders the map with an in-memory tile provider,
-so widget tests need no network.
+so widget tests need no network; `test/map_tiles_test.dart` checks the filter's
+rendered output.
