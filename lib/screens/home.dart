@@ -147,7 +147,9 @@ class HomePage extends StatelessWidget {
                       crossAxisCount: 2,
                       crossAxisSpacing: 20,
                       mainAxisSpacing: 20,
-                      childAspectRatio: 1.6,
+                      // Slightly taller than the artwork needs so the titles and
+                      // fixed-height cards never overflow on narrow phones.
+                      childAspectRatio: 1.5,
                     ),
                     itemBuilder: (context, index) {
                       final item = items[index];
@@ -368,6 +370,8 @@ class AppRecomendedCard extends StatelessWidget {
             padding: const EdgeInsets.only(left: 20),
             child: Text(
               item['title'],
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12),
             ),
           ),
@@ -396,7 +400,14 @@ class AppRecomendedCard extends StatelessWidget {
                       height: 62,
                     ),
                     const SizedBox(width: 20),
-                    SizedBox(width: 70, child: Text(item['subtitle'])),
+                    SizedBox(
+                      width: 70,
+                      child: Text(
+                        item['subtitle'],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ),
