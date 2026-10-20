@@ -1,9 +1,8 @@
 # Run doc — flutter_ui_taksi (cloud VM preview)
 
-This worktree is a Flutter/Dart project. There are no env files to copy from the
-main checkout: the Google Maps API key placeholders live in
-`android/app/src/main/AndroidManifest.xml` and
-`lib/services/google_map_service.dart` and are only used by mobile targets.
+This worktree is a Flutter/Dart project. There are no env files or API keys to
+copy from the main checkout: maps render OpenStreetMap raster tiles, which need
+no credential (see the Maps section below).
 
 ## 1. Reproduce the artifacts a fresh checkout needs
 
@@ -52,8 +51,8 @@ npx --yes http-server build/web -p 3000 -a 0.0.0.0 -c-1
 
 - Bound to `0.0.0.0:3000`; the Freebuff preview panel reaches it through the
   VM preview hostname (the static server does not validate Host headers).
-- Log used for this run: `.freebuff/preview-36f2d113-2636-4344-b220-6a1c4eb571e3.log`
-  (server process detached; listener pid recorded in the chat).
+- Log used for this run: `.freebuff/preview.log`; listener pid in
+  `.freebuff/preview.pid` (server process detached).
 - stdin is detached, so hot reload does not apply — rebuild `build/web` and
   restart the server to pick up code changes.
 - Stop it by killing the listener pid on port 3000.

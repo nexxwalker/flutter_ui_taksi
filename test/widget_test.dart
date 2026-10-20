@@ -1,6 +1,9 @@
 // Widget tests for the role-based flows of the My Town App.
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_ui_taksi/config/pallete.dart';
@@ -11,6 +14,25 @@ import 'api_stub.dart';
 
 extension on ApiService {
   ApiService build() => this;
+}
+
+/// 1x1 transparent PNG, so the home map renders without touching the network.
+final Uint8List _transparentPixel = Uint8List.fromList(<int>[
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, //
+  0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+  0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+  0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+  0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+  0x42, 0x60, 0x82,
+]);
+
+class _MemoryTileProvider extends TileProvider {
+  @override
+  ImageProvider getImage(TileCoordinates coordinates, TileLayer options) =>
+      MemoryImage(_transparentPixel);
 }
 
 /// Builds a stub API service seeded with the Nyeri foods + delivery catalog
@@ -150,7 +172,17 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       theme: _theme(),
       home: const TripProgressPage(),
-      onGenerateRoute: Routes.generateRoute,
+      // The rating sends the rider home, whose map must not hit the network in
+      // tests.
+      onGenerateRoute: (settings) {
+        if (settings.name == Routes.home) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => HomePage(tileProvider: _MemoryTileProvider()),
+          );
+        }
+        return Routes.generateRoute(settings);
+      },
     ));
 
     expect(find.text('Trip in progress'), findsOneWidget);
@@ -201,7 +233,7 @@ void main() {
     final api = _foodDeliveryStub().build();
     await tester.pumpWidget(MaterialApp(
       theme: _theme(),
-      home: HomePage(api: api),
+      home: HomePage(api: api, tileProvider: _MemoryTileProvider()),
       onGenerateRoute: (settings) {
         if (settings.name == Routes.groceries) {
           return MaterialPageRoute(
@@ -224,6 +256,16 @@ void main() {
         return Routes.generateRoute(settings);
       },
     ));
+
+    // The original home layout is back: header search, balance card, the four
+    // illustrated service cards, the pay banner and the live map.
+    expect(find.text('Where to ..?'), findsOneWidget);
+    expect(find.text('5,264 KES'), findsOneWidget);
+    expect(find.text('IS YOUR CURRENT BALANCE'), findsOneWidget);
+    expect(find.text('Need a ride?'), findsOneWidget);
+    expect(find.text('PAY IN A BLINK!'), findsOneWidget);
+    expect(find.text('Active services around you'), findsOneWidget);
+    expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
 
     // Groceries flow: pick items and place an order.
     await tester.tap(find.text('Need groceries?'));
